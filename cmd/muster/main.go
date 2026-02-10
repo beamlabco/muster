@@ -16,6 +16,8 @@ import (
 	"github.com/muster/cli/internal/ui"
 )
 
+var version = "dev"
+
 func main() {
 	// Load configuration
 	cfg, err := config.Load()

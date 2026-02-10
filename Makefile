@@ -22,10 +22,10 @@ deps:
 	go mod tidy
 	@echo "✓ Dependencies installed"
 
-# Install the binary to $GOPATH/bin
+# Install the binary to /usr/local/bin
 install: build
-	@echo "Installing $(BINARY_NAME) to $$GOPATH/bin..."
-	go install cmd/muster/main.go
+	@echo "Installing $(BINARY_NAME) to /usr/local/bin..."
+	cp $(BUILD_DIR)/$(BINARY_NAME) /usr/local/bin/$(BINARY_NAME)
 	@echo "✓ Installed successfully"
 
 # Clean build artifacts
@@ -78,7 +78,7 @@ help:
 	@echo "  make build         - Build the CLI binary"
 	@echo "  make run           - Run the CLI directly"
 	@echo "  make deps          - Install dependencies"
-	@echo "  make install       - Install binary to \$$GOPATH/bin"
+	@echo "  make install       - Install binary to /usr/local/bin"
 	@echo "  make clean         - Clean build artifacts"
 	@echo "  make test          - Run tests"
 	@echo "  make test-coverage - Run tests with coverage report"

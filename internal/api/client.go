@@ -34,7 +34,7 @@ func NewClient(baseURL, token string) *Client {
 
 // NewClientFromConfig creates a new API client from config
 func NewClientFromConfig(cfg *config.Config) *Client {
-	baseURL := "http://localhost:3000"
+	baseURL := "https://api.muster.stagify.xyz"
 	if cfg.API != nil && cfg.API.BaseURL != "" {
 		baseURL = cfg.API.BaseURL
 	}

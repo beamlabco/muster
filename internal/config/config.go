@@ -78,7 +78,7 @@ func Load() (*Config, error) {
 		// Config file not found, return default config
 		return &Config{
 			API: &API{
-				BaseURL: "http://localhost:3000",
+				BaseURL: "https://api.muster.stagify.xyz",
 			},
 		}, nil
 	}
@@ -87,7 +87,7 @@ func Load() (*Config, error) {
 	viper.SetConfigType("yaml")
 
 	// Set defaults
-	viper.SetDefault("api.base_url", "http://localhost:3000")
+	viper.SetDefault("api.base_url", "https://api.muster.stagify.xyz")
 
 	// Read config file
 	if err := viper.ReadInConfig(); err != nil {
