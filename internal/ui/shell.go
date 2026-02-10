@@ -857,7 +857,6 @@ func (m ShellModel) View() string {
 		BorderStyle(lipgloss.NormalBorder()).
 		BorderBottom(true).
 		BorderForeground(mutedColor).
-		Width(m.width - 4).
 		Padding(0, 1)
 
 	headerText := "Muster CLI"
@@ -906,12 +905,16 @@ func (m ShellModel) renderHelp() string {
 
 	categories := m.registry.GetByCategory(m.authService.IsAuthenticated())
 	categoryOrder := []string{"auth", "standup", "attendance", "leave", "admin", "utility"}
+	// When authenticated, auth commands (logout) go near the end
+	if m.authService.IsAuthenticated() {
+		categoryOrder = []string{"standup", "attendance", "leave", "admin", "auth", "utility"}
+	}
 	categoryNames := map[string]string{
 		"auth":       "Authentication",
 		"standup":    "Standups",
 		"attendance": "Attendance",
 		"leave":      "Leaves",
-		"admin":      "Admin",
+		"admin":      "Team Management",
 		"utility":    "Utility",
 	}
 

@@ -12,6 +12,7 @@ type Command struct {
 	Description  string
 	Category     string
 	RequiresAuth bool
+	HideWhenAuth bool
 }
 
 // CommandRegistry holds all available commands
@@ -23,39 +24,39 @@ type CommandRegistry struct {
 func NewCommandRegistry() *CommandRegistry {
 	return &CommandRegistry{
 		commands: []Command{
-			// Auth commands
-			{Name: "login", Aliases: []string{"signin"}, Description: "Sign in to your account", Category: "auth", RequiresAuth: false},
-			{Name: "signup", Aliases: []string{"register"}, Description: "Create a new account", Category: "auth", RequiresAuth: false},
-			{Name: "logout", Aliases: []string{"signout"}, Description: "Sign out of your account", Category: "auth", RequiresAuth: true},
-			{Name: "join", Aliases: nil, Description: "Join an organization via invitation", Category: "auth", RequiresAuth: false},
-			{Name: "invite", Aliases: nil, Description: "Invite a team member", Category: "auth", RequiresAuth: true},
+			// Auth (unauthenticated)
+			{Name: "login", Aliases: []string{"signin"}, Description: "Sign in to your account", Category: "auth", RequiresAuth: false, HideWhenAuth: true},
+			{Name: "signup", Aliases: []string{"register"}, Description: "Create a new account", Category: "auth", RequiresAuth: false, HideWhenAuth: true},
+			{Name: "join", Aliases: nil, Description: "Join an organization via invitation", Category: "auth", RequiresAuth: false, HideWhenAuth: true},
 
-			// Standup commands
+			// Standups
 			{Name: "standup", Aliases: nil, Description: "Submit your daily standup", Category: "standup", RequiresAuth: true},
 			{Name: "standup today", Aliases: nil, Description: "View team standups for today", Category: "standup", RequiresAuth: true},
 			{Name: "standup history", Aliases: []string{"standup my"}, Description: "View your standup history", Category: "standup", RequiresAuth: true},
 
-			// Attendance commands
+			// Attendance
 			{Name: "checkin", Aliases: []string{"in"}, Description: "Check in for the day", Category: "attendance", RequiresAuth: true},
 			{Name: "checkout", Aliases: []string{"out"}, Description: "Check out for the day", Category: "attendance", RequiresAuth: true},
 			{Name: "attendance", Aliases: []string{"attend"}, Description: "Mark your attendance", Category: "attendance", RequiresAuth: true},
 			{Name: "attendance today", Aliases: nil, Description: "View team attendance for today", Category: "attendance", RequiresAuth: true},
 			{Name: "attendance history", Aliases: []string{"attendance my"}, Description: "View your attendance history", Category: "attendance", RequiresAuth: true},
 
-			// Leave commands
+			// Leaves
 			{Name: "leave", Aliases: nil, Description: "Request a leave", Category: "leave", RequiresAuth: true},
 			{Name: "leave list", Aliases: []string{"leaves"}, Description: "View team leaves", Category: "leave", RequiresAuth: true},
 			{Name: "leave review", Aliases: nil, Description: "Review pending leaves (manager/primary)", Category: "leave", RequiresAuth: true},
 			{Name: "leave cancel", Aliases: nil, Description: "Cancel a pending leave", Category: "leave", RequiresAuth: true},
 
-			// User management commands
+			// Team management
 			{Name: "team", Aliases: []string{"members"}, Description: "View team members and roles", Category: "admin", RequiresAuth: true},
 			{Name: "role", Aliases: nil, Description: "Update a user's role (primary only)", Category: "admin", RequiresAuth: true},
+			{Name: "invite", Aliases: nil, Description: "Invite a team member", Category: "admin", RequiresAuth: true},
 
-			// Utility commands
+			// Utility
 			{Name: "help", Aliases: []string{"?"}, Description: "Show available commands", Category: "utility", RequiresAuth: false},
 			{Name: "whoami", Aliases: []string{"me"}, Description: "Show current user info", Category: "utility", RequiresAuth: true},
 			{Name: "clear", Aliases: []string{"cls"}, Description: "Clear the screen", Category: "utility", RequiresAuth: false},
+			{Name: "logout", Aliases: []string{"signout"}, Description: "Sign out of your account", Category: "auth", RequiresAuth: true},
 			{Name: "quit", Aliases: []string{"exit", "q"}, Description: "Exit the application", Category: "utility", RequiresAuth: false},
 		},
 	}
@@ -70,9 +71,13 @@ func (r *CommandRegistry) GetAll() []Command {
 func (r *CommandRegistry) GetAvailable(isAuthenticated bool) []Command {
 	var available []Command
 	for _, cmd := range r.commands {
-		if !cmd.RequiresAuth || isAuthenticated {
-			available = append(available, cmd)
+		if cmd.RequiresAuth && !isAuthenticated {
+			continue
 		}
+		if cmd.HideWhenAuth && isAuthenticated {
+			continue
+		}
+		available = append(available, cmd)
 	}
 	return available
 }

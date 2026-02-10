@@ -37,7 +37,7 @@ func main() {
 
 	// Start the shell
 	shellModel := ui.NewShellModel(authService, standupService, attendanceService, invitationService, leaveService, userService, cfg)
-	p := tea.NewProgram(shellModel, tea.WithAltScreen())
+	p := tea.NewProgram(shellModel)
 
 	if _, err := p.Run(); err != nil {
 		fmt.Fprintf(os.Stderr, "Error running program: %v\n", err)
