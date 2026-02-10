@@ -44,6 +44,7 @@ brews:
   - repository:
       owner: beamlabco
       name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
     directory: Formula
     homepage: "https://github.com/beamlabco/muster"
     description: "CLI tool for team standups, attendance tracking, and leave management"
