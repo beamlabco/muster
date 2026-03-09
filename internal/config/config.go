@@ -109,6 +109,12 @@ func Load() (*Config, error) {
 		return nil, fmt.Errorf("failed to unmarshal config: %w", err)
 	}
 
+	// Always use build-time/env base URL — never persist or read from config file
+	if cfg.API == nil {
+		cfg.API = &API{}
+	}
+	cfg.API.BaseURL = baseURL
+
 	return &cfg, nil
 }
 
@@ -122,9 +128,8 @@ func Save(cfg *Config) error {
 	viper.Set("user", cfg.User)
 	viper.Set("organization", cfg.Organization)
 	viper.Set("auth", cfg.Auth)
-	if cfg.API != nil {
-		viper.Set("api.base_url", cfg.API.BaseURL)
-	}
+	// Don't persist api.base_url — it's controlled by build-time ldflags / env var
+	viper.Set("api", nil)
 
 	if err := viper.WriteConfigAs(configFile); err != nil {
 		return fmt.Errorf("failed to write config file: %w", err)
