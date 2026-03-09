@@ -41,6 +41,10 @@ type API struct {
 	BaseURL string `mapstructure:"base_url"`
 }
 
+// DefaultBaseURL is set at build time via ldflags, or overridden by MUSTER_API_URL env var.
+// In dev it defaults to localhost; release builds inject the production URL.
+var DefaultBaseURL = "http://localhost:3000"
+
 var (
 	configDir  string
 	configFile string
@@ -73,12 +77,18 @@ func Load() (*Config, error) {
 		return nil, fmt.Errorf("failed to create config directory: %w", err)
 	}
 
+	// Resolve base URL: env var > config file > build-time default
+	baseURL := DefaultBaseURL
+	if envURL := os.Getenv("MUSTER_API_URL"); envURL != "" {
+		baseURL = envURL
+	}
+
 	// Check if config file exists
 	if _, err := os.Stat(configFile); os.IsNotExist(err) {
 		// Config file not found, return default config
 		return &Config{
 			API: &API{
-				BaseURL: "https://api.muster.stagify.xyz",
+				BaseURL: baseURL,
 			},
 		}, nil
 	}
@@ -87,7 +97,7 @@ func Load() (*Config, error) {
 	viper.SetConfigType("yaml")
 
 	// Set defaults
-	viper.SetDefault("api.base_url", "https://api.muster.stagify.xyz")
+	viper.SetDefault("api.base_url", baseURL)
 
 	// Read config file
 	if err := viper.ReadInConfig(); err != nil {
@@ -112,7 +122,9 @@ func Save(cfg *Config) error {
 	viper.Set("user", cfg.User)
 	viper.Set("organization", cfg.Organization)
 	viper.Set("auth", cfg.Auth)
-	viper.Set("api", cfg.API)
+	if cfg.API != nil {
+		viper.Set("api.base_url", cfg.API.BaseURL)
+	}
 
 	if err := viper.WriteConfigAs(configFile); err != nil {
 		return fmt.Errorf("failed to write config file: %w", err)

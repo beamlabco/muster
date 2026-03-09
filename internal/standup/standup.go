@@ -21,7 +21,7 @@ func NewService(client *api.Client) *Service {
 }
 
 // Submit submits or updates a standup
-func (s *Service) Submit(date, yesterday, today, blockers string) (*api.StandupResponse, error) {
+func (s *Service) Submit(projectID int, date, yesterday, today, blockers string) (*api.StandupResponse, error) {
 	// Validate date format
 	if date == "" {
 		date = time.Now().Format("2006-01-02")
@@ -43,6 +43,7 @@ func (s *Service) Submit(date, yesterday, today, blockers string) (*api.StandupR
 
 	req := &api.StandupRequest{
 		Date:      date,
+		ProjectID: projectID,
 		Yesterday: yesterday,
 		Today:     today,
 		Blockers:  blockers,

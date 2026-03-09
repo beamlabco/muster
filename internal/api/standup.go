@@ -8,6 +8,7 @@ import (
 // StandupRequest represents the standup submission request
 type StandupRequest struct {
 	Date      string `json:"date"`
+	ProjectID int    `json:"projectId"`
 	Yesterday string `json:"yesterday,omitempty"`
 	Today     string `json:"today,omitempty"`
 	Blockers  string `json:"blockers,omitempty"`
@@ -17,6 +18,7 @@ type StandupRequest struct {
 type StandupResponse struct {
 	ID        int       `json:"id"`
 	UserID    int       `json:"userId"`
+	ProjectID int       `json:"projectId"`
 	Date      string    `json:"date"`
 	Yesterday *string   `json:"yesterday"`
 	Today     *string   `json:"today"`
@@ -29,6 +31,10 @@ type StandupResponse struct {
 		Email string `json:"email"`
 		Role  string `json:"role"`
 	} `json:"user,omitempty"`
+	Project *struct {
+		ID   int    `json:"id"`
+		Name string `json:"name"`
+	} `json:"project,omitempty"`
 }
 
 // SubmitStandupResponse represents the submit standup response

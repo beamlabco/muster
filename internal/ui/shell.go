@@ -3,14 +3,18 @@ package ui
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/muster/cli/internal/api"
 	"github.com/muster/cli/internal/attendance"
 	"github.com/muster/cli/internal/auth"
 	"github.com/muster/cli/internal/config"
 	"github.com/muster/cli/internal/invitation"
 	"github.com/muster/cli/internal/leave"
+	"github.com/muster/cli/internal/organization"
+	"github.com/muster/cli/internal/project"
 	"github.com/muster/cli/internal/standup"
 	"github.com/muster/cli/internal/user"
 )
@@ -38,7 +42,32 @@ const (
 	viewLeaveCancel
 	viewTeamList
 	viewRoleUpdate
+	viewSettings
+	viewProjectList
+	viewProjectCreate
+	viewProjectSettings
 )
+
+// Dashboard message types
+type dashboardStandupMsg struct {
+	standups []*api.StandupResponse
+	err      error
+}
+
+type dashboardAttendanceMsg struct {
+	resp *api.GetTodayAttendanceResponse
+	err  error
+}
+
+type dashboardPendingLeavesMsg struct {
+	count int
+	err   error
+}
+
+type dashboardApprovedLeavesMsg struct {
+	onLeave []string
+	err     error
+}
 
 // ShellModel is the main REPL shell
 type ShellModel struct {
@@ -49,6 +78,8 @@ type ShellModel struct {
 	invitationService *invitation.Service
 	leaveService      *leave.Service
 	userService       *user.Service
+	orgService        *organization.Service
+	projectService    *project.Service
 	config            *config.Config
 
 	// Shell components
@@ -77,10 +108,28 @@ type ShellModel struct {
 	leaveCancelModel         LeaveCancelModel
 	teamListModel            TeamListModel
 	roleUpdateModel          RoleUpdateModel
+	settingsModel            SettingsModel
+	projectListModel         ProjectListModel
+	projectCreateModel       ProjectCreateModel
+	projectSettingsModel     ProjectSettingsModel
 
 	// Output area
 	output     string
 	outputType string // "success", "error", "info"
+
+	// Dashboard state
+	dashboard struct {
+		loading          bool
+		myStandup        *api.StandupResponse
+		myAttendance     *api.AttendanceResponse
+		attendanceMarked int
+		totalMembers     int
+		statusCounts     map[string]int
+		pendingLeaves    int
+		onLeaveToday     []string
+		fetchesCompleted int
+		totalFetches     int
+	}
 
 	// State
 	quitting bool
@@ -89,7 +138,7 @@ type ShellModel struct {
 }
 
 // NewShellModel creates a new shell model
-func NewShellModel(authService *auth.Service, standupService *standup.Service, attendanceService *attendance.Service, invitationService *invitation.Service, leaveService *leave.Service, userService *user.Service, cfg *config.Config) ShellModel {
+func NewShellModel(authService *auth.Service, standupService *standup.Service, attendanceService *attendance.Service, invitationService *invitation.Service, leaveService *leave.Service, userService *user.Service, orgService *organization.Service, projectService *project.Service, cfg *config.Config) ShellModel {
 	registry := NewCommandRegistry()
 	isAuth := authService.IsAuthenticated()
 
@@ -100,6 +149,8 @@ func NewShellModel(authService *auth.Service, standupService *standup.Service, a
 		invitationService: invitationService,
 		leaveService:      leaveService,
 		userService:       userService,
+		orgService:        orgService,
+		projectService:    projectService,
 		config:            cfg,
 		commandInput:      NewCommandInput(registry, isAuth),
 		registry:          registry,
@@ -111,7 +162,77 @@ func NewShellModel(authService *auth.Service, standupService *standup.Service, a
 
 // Init initializes the shell
 func (m ShellModel) Init() tea.Cmd {
+	if m.authService.IsAuthenticated() {
+		m.dashboard.loading = true
+		m.dashboard.totalFetches = 4
+		return tea.Batch(
+			m.commandInput.Focus(),
+			m.fetchDashboardStandups(),
+			m.fetchDashboardAttendance(),
+			m.fetchDashboardPendingLeaves(),
+			m.fetchDashboardApprovedLeaves(),
+		)
+	}
 	return m.commandInput.Focus()
+}
+
+func (m ShellModel) fetchDashboardStandups() tea.Cmd {
+	return func() tea.Msg {
+		standups, _, err := m.standupService.GetToday()
+		return dashboardStandupMsg{standups: standups, err: err}
+	}
+}
+
+func (m ShellModel) fetchDashboardAttendance() tea.Cmd {
+	return func() tea.Msg {
+		resp, err := m.attendanceService.GetToday()
+		return dashboardAttendanceMsg{resp: resp, err: err}
+	}
+}
+
+func (m ShellModel) fetchDashboardPendingLeaves() tea.Cmd {
+	return func() tea.Msg {
+		_, count, err := m.leaveService.GetAll("pending", 0, 1, 0)
+		return dashboardPendingLeavesMsg{count: count, err: err}
+	}
+}
+
+func (m ShellModel) fetchDashboardApprovedLeaves() tea.Cmd {
+	return func() tea.Msg {
+		today := time.Now().Format("2006-01-02")
+		leaves, _, err := m.leaveService.GetAll("approved", 0, 100, 0)
+		if err != nil {
+			return dashboardApprovedLeavesMsg{err: err}
+		}
+		var onLeave []string
+		for _, l := range leaves {
+			if l.StartDate <= today && l.EndDate >= today && l.User != nil {
+				onLeave = append(onLeave, l.User.Name)
+			}
+		}
+		return dashboardApprovedLeavesMsg{onLeave: onLeave}
+	}
+}
+
+func (m *ShellModel) startDashboardFetch() tea.Cmd {
+	m.dashboard = struct {
+		loading          bool
+		myStandup        *api.StandupResponse
+		myAttendance     *api.AttendanceResponse
+		attendanceMarked int
+		totalMembers     int
+		statusCounts     map[string]int
+		pendingLeaves    int
+		onLeaveToday     []string
+		fetchesCompleted int
+		totalFetches     int
+	}{loading: true, totalFetches: 4}
+	return tea.Batch(
+		m.fetchDashboardStandups(),
+		m.fetchDashboardAttendance(),
+		m.fetchDashboardPendingLeaves(),
+		m.fetchDashboardApprovedLeaves(),
+	)
 }
 
 // Update handles messages
@@ -120,6 +241,61 @@ func (m ShellModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if msg, ok := msg.(tea.WindowSizeMsg); ok {
 		m.width = msg.Width
 		m.height = msg.Height
+	}
+
+	// Handle dashboard messages
+	switch msg := msg.(type) {
+	case dashboardStandupMsg:
+		m.dashboard.fetchesCompleted++
+		if msg.err == nil && m.config.User != nil {
+			for _, s := range msg.standups {
+				if s.UserID == m.config.User.ID {
+					m.dashboard.myStandup = s
+					break
+				}
+			}
+		}
+		if m.dashboard.fetchesCompleted >= m.dashboard.totalFetches {
+			m.dashboard.loading = false
+		}
+		return m, nil
+	case dashboardAttendanceMsg:
+		m.dashboard.fetchesCompleted++
+		if msg.err == nil && msg.resp != nil {
+			m.dashboard.attendanceMarked = msg.resp.Marked
+			m.dashboard.totalMembers = msg.resp.TotalMembers
+			m.dashboard.statusCounts = msg.resp.StatusCounts
+			if m.config.User != nil {
+				for _, a := range msg.resp.Attendance {
+					if a.UserID == m.config.User.ID {
+						m.dashboard.myAttendance = a
+						break
+					}
+				}
+			}
+		}
+		if m.dashboard.fetchesCompleted >= m.dashboard.totalFetches {
+			m.dashboard.loading = false
+		}
+		return m, nil
+	case dashboardPendingLeavesMsg:
+		m.dashboard.fetchesCompleted++
+		if msg.err == nil {
+			m.dashboard.pendingLeaves = msg.count
+		}
+		if m.dashboard.fetchesCompleted >= m.dashboard.totalFetches {
+			m.dashboard.loading = false
+		}
+		return m, nil
+	case dashboardApprovedLeavesMsg:
+		m.dashboard.fetchesCompleted++
+		if msg.err == nil {
+			m.dashboard.onLeaveToday = msg.onLeave
+		}
+		if m.dashboard.fetchesCompleted >= m.dashboard.totalFetches {
+			m.dashboard.loading = false
+		}
+		return m, nil
 	}
 
 	// Route to sub-model if active
@@ -160,6 +336,14 @@ func (m ShellModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.updateTeamList(msg)
 	case viewRoleUpdate:
 		return m.updateRoleUpdate(msg)
+	case viewSettings:
+		return m.updateSettings(msg)
+	case viewProjectList:
+		return m.updateProjectList(msg)
+	case viewProjectCreate:
+		return m.updateProjectCreate(msg)
+	case viewProjectSettings:
+		return m.updateProjectSettings(msg)
 	}
 
 	// Handle shell input
@@ -270,16 +454,44 @@ func (m ShellModel) handleCommand(cmdName string) (tea.Model, tea.Cmd) {
 			m.output = fmt.Sprintf("Logout failed: %s", err.Error())
 			m.outputType = "error"
 		} else {
-			m.output = "Logged out successfully"
-			m.outputType = "success"
+			m.output = ""
+			m.outputType = ""
 			m.commandInput.SetAuth(false)
+			m.dashboard = struct {
+				loading          bool
+				myStandup        *api.StandupResponse
+				myAttendance     *api.AttendanceResponse
+				attendanceMarked int
+				totalMembers     int
+				statusCounts     map[string]int
+				pendingLeaves    int
+				onLeaveToday     []string
+				fetchesCompleted int
+				totalFetches     int
+			}{}
 		}
 		return m, m.commandInput.Focus()
+
+	// Project commands
+	case "project":
+		m.currentView = viewProjectList
+		m.projectListModel = NewProjectListModel(m.projectService)
+		return m, m.projectListModel.Init()
+
+	case "project create":
+		m.currentView = viewProjectCreate
+		m.projectCreateModel = NewProjectCreateModel(m.projectService)
+		return m, m.projectCreateModel.Init()
+
+	case "project settings":
+		m.currentView = viewProjectSettings
+		m.projectSettingsModel = NewProjectSettingsModel(m.projectService)
+		return m, m.projectSettingsModel.Init()
 
 	// Standup commands
 	case "standup":
 		m.currentView = viewStandupSubmit
-		m.standupSubmitModel = NewStandupSubmitModel(m.standupService, nil)
+		m.standupSubmitModel = NewStandupSubmitModel(m.standupService, m.projectService, nil)
 		return m, m.standupSubmitModel.Init()
 
 	case "standup today":
@@ -354,6 +566,12 @@ func (m ShellModel) handleCommand(cmdName string) (tea.Model, tea.Cmd) {
 		m.roleUpdateModel = NewRoleUpdateModel(m.userService)
 		return m, m.roleUpdateModel.Init()
 
+	// Organization settings
+	case "settings":
+		m.currentView = viewSettings
+		m.settingsModel = NewSettingsModel(m.orgService)
+		return m, m.settingsModel.Init()
+
 	// Utility commands
 	case "help":
 		m.output = m.renderHelp()
@@ -393,10 +611,11 @@ func (m ShellModel) updateLogin(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	case loginSuccessMsg:
 		m.currentView = viewShell
-		m.output = "Login successful! Welcome back."
-		m.outputType = "success"
+		m.output = ""
+		m.outputType = ""
 		m.commandInput.SetAuth(true)
-		return m, m.commandInput.Focus()
+		cmd := m.startDashboardFetch()
+		return m, tea.Batch(m.commandInput.Focus(), cmd)
 	case loginErrorMsg:
 		// Let the login model handle displaying the error
 	}
@@ -423,10 +642,11 @@ func (m ShellModel) updateRegister(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	case registerSuccessMsg:
 		m.currentView = viewShell
-		m.output = fmt.Sprintf("Welcome to Muster, %s! Your account has been created.", string(msg))
-		m.outputType = "success"
+		m.output = ""
+		m.outputType = ""
 		m.commandInput.SetAuth(true)
-		return m, m.commandInput.Focus()
+		cmd := m.startDashboardFetch()
+		return m, tea.Batch(m.commandInput.Focus(), cmd)
 	}
 
 	newModel, cmd := m.registerModel.Update(msg)
@@ -654,10 +874,11 @@ func (m ShellModel) updateJoin(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	case joinSuccessMsg:
 		m.currentView = viewShell
-		m.output = fmt.Sprintf("Welcome to %s, %s! You've joined the organization.", msg.org, msg.name)
-		m.outputType = "success"
+		m.output = ""
+		m.outputType = ""
 		m.commandInput.SetAuth(true)
-		return m, m.commandInput.Focus()
+		cmd := m.startDashboardFetch()
+		return m, tea.Batch(m.commandInput.Focus(), cmd)
 	}
 
 	newModel, cmd := m.joinModel.Update(msg)
@@ -801,6 +1022,99 @@ func (m ShellModel) updateRoleUpdate(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
+func (m ShellModel) updateSettings(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case tea.KeyMsg:
+		if msg.String() == "esc" {
+			m.currentView = viewShell
+			return m, m.commandInput.Focus()
+		}
+	case settingsUpdatedMsg:
+		m.currentView = viewShell
+		m.output = "Organization settings updated!"
+		m.outputType = "success"
+		return m, m.commandInput.Focus()
+	}
+
+	newModel, cmd := m.settingsModel.Update(msg)
+	m.settingsModel = newModel.(SettingsModel)
+
+	if m.settingsModel.shouldGoBack {
+		m.currentView = viewShell
+		return m, m.commandInput.Focus()
+	}
+
+	return m, cmd
+}
+
+func (m ShellModel) updateProjectList(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case tea.KeyMsg:
+		if msg.String() == "esc" || msg.String() == "q" {
+			m.currentView = viewShell
+			return m, m.commandInput.Focus()
+		}
+	}
+
+	newModel, cmd := m.projectListModel.Update(msg)
+	m.projectListModel = newModel.(ProjectListModel)
+
+	if m.projectListModel.shouldGoBack {
+		m.currentView = viewShell
+		return m, m.commandInput.Focus()
+	}
+
+	return m, cmd
+}
+
+func (m ShellModel) updateProjectCreate(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case tea.KeyMsg:
+		if msg.String() == "esc" {
+			// let model handle it
+		}
+	case projectCreateSuccessMsg:
+		m.currentView = viewShell
+		m.output = string(msg)
+		m.outputType = "success"
+		return m, m.commandInput.Focus()
+	}
+
+	newModel, cmd := m.projectCreateModel.Update(msg)
+	m.projectCreateModel = newModel.(ProjectCreateModel)
+
+	if m.projectCreateModel.shouldGoBack {
+		m.currentView = viewShell
+		return m, m.commandInput.Focus()
+	}
+
+	return m, cmd
+}
+
+func (m ShellModel) updateProjectSettings(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case tea.KeyMsg:
+		if msg.String() == "esc" {
+			// Let the model handle esc for phase transitions
+		}
+	case projectSettingsUpdatedMsg:
+		m.currentView = viewShell
+		m.output = "Project settings updated!"
+		m.outputType = "success"
+		return m, m.commandInput.Focus()
+	}
+
+	newModel, cmd := m.projectSettingsModel.Update(msg)
+	m.projectSettingsModel = newModel.(ProjectSettingsModel)
+
+	if m.projectSettingsModel.shouldGoBack {
+		m.currentView = viewShell
+		return m, m.commandInput.Focus()
+	}
+
+	return m, cmd
+}
+
 // View renders the shell
 func (m ShellModel) View() string {
 	if m.quitting {
@@ -845,33 +1159,49 @@ func (m ShellModel) View() string {
 		return m.teamListModel.View()
 	case viewRoleUpdate:
 		return m.roleUpdateModel.View()
+	case viewSettings:
+		return m.settingsModel.View()
+	case viewProjectList:
+		return m.projectListModel.View()
+	case viewProjectCreate:
+		return m.projectCreateModel.View()
+	case viewProjectSettings:
+		return m.projectSettingsModel.View()
 	}
 
 	// Render shell view
 	var b strings.Builder
 
-	// Header
-	headerStyle := lipgloss.NewStyle().
-		Bold(true).
-		Foreground(primaryColor).
-		BorderStyle(lipgloss.NormalBorder()).
-		BorderBottom(true).
-		BorderForeground(mutedColor).
-		Padding(0, 1)
-
-	headerText := "Muster CLI"
-	if m.authService.IsAuthenticated() {
-		user := m.authService.GetUser()
-		org := m.authService.GetOrganization()
-		if user != nil && org != nil {
-			headerText = fmt.Sprintf("Muster CLI  •  %s @ %s", user.Name, org.Name)
+	// Dashboard or output area
+	if m.output == "" {
+		if m.authService.IsAuthenticated() {
+			b.WriteString(m.renderDashboard())
+		} else {
+			b.WriteString(m.renderUnauthDashboard())
 		}
+		b.WriteString("\n")
 	}
-	b.WriteString(headerStyle.Render(headerText))
-	b.WriteString("\n\n")
 
-	// Output area
+	// Header + Output area (when output is shown, dashboard is replaced)
 	if m.output != "" {
+		headerStyle := lipgloss.NewStyle().
+			Bold(true).
+			Foreground(primaryColor).
+			BorderStyle(lipgloss.NormalBorder()).
+			BorderBottom(true).
+			BorderForeground(mutedColor).
+			Padding(0, 1)
+
+		headerText := "Muster CLI"
+		if m.authService.IsAuthenticated() {
+			user := m.authService.GetUser()
+			org := m.authService.GetOrganization()
+			if user != nil && org != nil {
+				headerText = fmt.Sprintf("Muster CLI  •  %s @ %s", user.Name, org.Name)
+			}
+		}
+		b.WriteString(headerStyle.Render(headerText))
+		b.WriteString("\n\n")
 		var outputStyle lipgloss.Style
 		switch m.outputType {
 		case "success":
@@ -904,16 +1234,17 @@ func (m ShellModel) renderHelp() string {
 	b.WriteString("Available Commands:\n\n")
 
 	categories := m.registry.GetByCategory(m.authService.IsAuthenticated())
-	categoryOrder := []string{"auth", "standup", "attendance", "leave", "admin", "utility"}
+	categoryOrder := []string{"auth", "standup", "attendance", "leave", "project", "admin", "utility"}
 	// When authenticated, auth commands (logout) go near the end
 	if m.authService.IsAuthenticated() {
-		categoryOrder = []string{"standup", "attendance", "leave", "admin", "auth", "utility"}
+		categoryOrder = []string{"standup", "attendance", "leave", "project", "admin", "auth", "utility"}
 	}
 	categoryNames := map[string]string{
 		"auth":       "Authentication",
 		"standup":    "Standups",
 		"attendance": "Attendance",
 		"leave":      "Leaves",
+		"project":    "Projects",
 		"admin":      "Team Management",
 		"utility":    "Utility",
 	}
@@ -948,5 +1279,303 @@ func (m ShellModel) renderWhoami() string {
 
 	return fmt.Sprintf("User: %s (%s)\nEmail: %s\nRole: %s\nOrganization: %s",
 		user.Name, user.Role, user.Email, user.Role, org.Name)
+}
+
+// Dashboard rendering
+
+func (m ShellModel) getGreeting() string {
+	hour := time.Now().Hour()
+	switch {
+	case hour < 12:
+		return "Good morning"
+	case hour < 17:
+		return "Good afternoon"
+	default:
+		return "Good evening"
+	}
+}
+
+// stripAnsi removes ANSI escape sequences to get the visible length of a string
+func stripAnsi(s string) string {
+	var out strings.Builder
+	i := 0
+	for i < len(s) {
+		if s[i] == '\x1b' && i+1 < len(s) && s[i+1] == '[' {
+			// Skip until we hit a letter
+			j := i + 2
+			for j < len(s) && !((s[j] >= 'A' && s[j] <= 'Z') || (s[j] >= 'a' && s[j] <= 'z')) {
+				j++
+			}
+			if j < len(s) {
+				j++ // skip the final letter
+			}
+			i = j
+		} else {
+			out.WriteByte(s[i])
+			i++
+		}
+	}
+	return out.String()
+}
+
+// visibleLen returns the visible character count (excluding ANSI codes), counting runes
+func visibleLen(s string) int {
+	cleaned := stripAnsi(s)
+	count := 0
+	for range cleaned {
+		count++
+	}
+	return count
+}
+
+// padToWidth pads a styled string to a target visible width with spaces
+func padToWidth(s string, width int) string {
+	vl := visibleLen(s)
+	if vl >= width {
+		return s
+	}
+	return s + strings.Repeat(" ", width-vl)
+}
+
+// buildBoxedDashboard constructs a bordered box with optional two columns
+// title goes in the top border, leftLines and rightLines are the column content
+func buildBoxedDashboard(title string, leftLines, rightLines []string, totalWidth int, borderColor lipgloss.Color) string {
+	border := lipgloss.NewStyle().Foreground(borderColor)
+
+	// Calculate inner width (excluding the 2 border chars │ on each side)
+	innerWidth := totalWidth - 2
+	if innerWidth < 20 {
+		innerWidth = 20
+	}
+
+	hasTwoCols := len(rightLines) > 0
+
+	// Column widths
+	var leftW, rightW int
+	if hasTwoCols {
+		leftW = innerWidth*2/5 - 1 // -1 for the separator │
+		rightW = innerWidth - leftW - 1
+	} else {
+		leftW = innerWidth
+	}
+
+	// Top border: ╭─── Title ───...╮
+	titleVis := visibleLen(title)
+	topFill := innerWidth - 4 - titleVis - 1 // "─── " + title + " " + fill + "╮"
+	if topFill < 1 {
+		topFill = 1
+	}
+	topLine := border.Render("╭─── ") + title + border.Render(" "+strings.Repeat("─", topFill)+"╮")
+
+	// Bottom border: ╰───...╯
+	bottomLine := border.Render("╰" + strings.Repeat("─", innerWidth) + "╯")
+
+	// Build rows
+	maxRows := len(leftLines)
+	if len(rightLines) > maxRows {
+		maxRows = len(rightLines)
+	}
+
+	var rows []string
+	rows = append(rows, topLine)
+
+	for i := 0; i < maxRows; i++ {
+		left := ""
+		if i < len(leftLines) {
+			left = leftLines[i]
+		}
+		leftPadded := padToWidth(left, leftW)
+
+		if hasTwoCols {
+			right := ""
+			if i < len(rightLines) {
+				right = rightLines[i]
+			}
+			rightPadded := padToWidth(right, rightW)
+			rows = append(rows, border.Render("│")+leftPadded+border.Render("│")+rightPadded+border.Render("│"))
+		} else {
+			rows = append(rows, border.Render("│")+leftPadded+border.Render("│"))
+		}
+	}
+
+	rows = append(rows, bottomLine)
+	return strings.Join(rows, "\n")
+}
+
+func (m ShellModel) renderDashboard() string {
+	if m.dashboard.loading {
+		spinnerStyle := lipgloss.NewStyle().Foreground(mutedColor)
+		return spinnerStyle.Render("  Loading dashboard...")
+	}
+
+	titleStyle := lipgloss.NewStyle().Bold(true).Foreground(primaryColor)
+	title := titleStyle.Render("Muster CLI")
+
+	leftLines := m.getDashboardLeftLines()
+	rightLines := m.getDashboardRightLines()
+
+	boxWidth := m.width - 4 // account for baseStyle padding
+	if boxWidth < 40 {
+		boxWidth = 40
+	}
+
+	if m.width < 80 {
+		// Narrow: stack vertically, no right column
+		allLines := append(leftLines, "")
+		allLines = append(allLines, rightLines...)
+		return buildBoxedDashboard(title, allLines, nil, boxWidth, mutedColor)
+	}
+
+	return buildBoxedDashboard(title, leftLines, rightLines, boxWidth, mutedColor)
+}
+
+func (m ShellModel) getDashboardLeftLines() []string {
+	greetStyle := lipgloss.NewStyle().Bold(true).Foreground(primaryColor)
+	dim := lipgloss.NewStyle().Foreground(mutedColor)
+	logoColor := lipgloss.NewStyle().Foreground(primaryColor)
+
+	userName := "there"
+	role := ""
+	orgName := ""
+	if m.config.User != nil {
+		userName = m.config.User.Name
+		role = m.config.User.Role
+	}
+	if m.config.Organization != nil {
+		orgName = m.config.Organization.Name
+	}
+
+	var lines []string
+	lines = append(lines, "")
+	lines = append(lines, " "+greetStyle.Render(fmt.Sprintf("%s, %s!", m.getGreeting(), userName)))
+	lines = append(lines, "")
+
+	// ASCII art logo
+	lines = append(lines, "      "+logoColor.Render("▐▛▀▀▀▜▌"))
+	lines = append(lines, "      "+logoColor.Render("▐▌▄▀▄▐▌"))
+	lines = append(lines, "      "+logoColor.Render("▐▌▀▄▀▐▌"))
+	lines = append(lines, "      "+logoColor.Render("▝▀▀▀▀▀▘"))
+
+	if role != "" && orgName != "" {
+		lines = append(lines, "   "+dim.Render(role+" @ "+orgName))
+	}
+	lines = append(lines, "   "+dim.Render(time.Now().Format("Mon, Jan 2, 2006")))
+	lines = append(lines, "")
+
+	return lines
+}
+
+func (m ShellModel) getDashboardRightLines() []string {
+	sectionHeader := lipgloss.NewStyle().Bold(true).Foreground(secondaryColor)
+	dim := lipgloss.NewStyle().Foreground(mutedColor)
+	normal := lipgloss.NewStyle().Foreground(lipgloss.Color("#FFFFFF"))
+	good := lipgloss.NewStyle().Foreground(successColor)
+	warn := lipgloss.NewStyle().Foreground(secondaryColor)
+
+	var lines []string
+	lines = append(lines, "")
+	lines = append(lines, " "+sectionHeader.Render("Today's Snapshot"))
+
+	if m.dashboard.myStandup != nil {
+		lines = append(lines, fmt.Sprintf("   %s  %s", good.Render("✓"), normal.Render("Standup submitted")))
+	} else {
+		lines = append(lines, fmt.Sprintf("   %s  %s", warn.Render("○"), dim.Render("Standup not submitted")))
+	}
+
+	if m.dashboard.myAttendance != nil {
+		lines = append(lines, fmt.Sprintf("   %s  %s", good.Render("✓"), normal.Render("Marked "+m.dashboard.myAttendance.Status)))
+	} else {
+		lines = append(lines, fmt.Sprintf("   %s  %s", warn.Render("○"), dim.Render("Attendance not marked")))
+	}
+
+	if m.config.User != nil && m.config.User.Role == "primary" && m.dashboard.pendingLeaves > 0 {
+		lines = append(lines, fmt.Sprintf("   %s  %s", warn.Render("!"), warn.Render(fmt.Sprintf("%d pending leave request(s)", m.dashboard.pendingLeaves))))
+	}
+
+	if len(m.dashboard.onLeaveToday) > 0 {
+		names := strings.Join(m.dashboard.onLeaveToday, ", ")
+		lines = append(lines, fmt.Sprintf("   %s  %s", dim.Render("✈"), dim.Render("On leave: "+names)))
+	}
+
+	lines = append(lines, "")
+	lines = append(lines, " "+sectionHeader.Render("Team Overview"))
+
+	if m.dashboard.totalMembers > 0 {
+		lines = append(lines, fmt.Sprintf("   Attendance: %s / %s marked",
+			normal.Render(fmt.Sprintf("%d", m.dashboard.attendanceMarked)),
+			dim.Render(fmt.Sprintf("%d", m.dashboard.totalMembers)),
+		))
+
+		var parts []string
+		for _, status := range []string{"present", "remote", "half-day", "absent"} {
+			if count, ok := m.dashboard.statusCounts[status]; ok && count > 0 {
+				parts = append(parts, fmt.Sprintf("%s: %d", status, count))
+			}
+		}
+		unmarked := m.dashboard.totalMembers - m.dashboard.attendanceMarked
+		if unmarked > 0 {
+			parts = append(parts, fmt.Sprintf("unmarked: %d", unmarked))
+		}
+		if len(parts) > 0 {
+			lines = append(lines, "   "+dim.Render(strings.Join(parts, "  ")))
+		}
+	} else {
+		lines = append(lines, "   "+dim.Render("No attendance data yet"))
+	}
+
+	lines = append(lines, "")
+
+	return lines
+}
+
+func (m ShellModel) renderUnauthDashboard() string {
+	titleStyle := lipgloss.NewStyle().Bold(true).Foreground(primaryColor)
+	title := titleStyle.Render("Muster CLI")
+
+	cmdStyle := lipgloss.NewStyle().Foreground(primaryColor)
+	hintStyle := lipgloss.NewStyle().Foreground(mutedColor)
+	welcomeStyle := lipgloss.NewStyle().Bold(true).Foreground(primaryColor)
+	logoColor := lipgloss.NewStyle().Foreground(primaryColor)
+	descStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#FFFFFF"))
+	hintHeader := lipgloss.NewStyle().Bold(true).Foreground(secondaryColor)
+
+	var leftLines []string
+	leftLines = append(leftLines, "")
+	leftLines = append(leftLines, " "+welcomeStyle.Render("Welcome to Muster!"))
+	leftLines = append(leftLines, "")
+	leftLines = append(leftLines, "      "+logoColor.Render("▐▛▀▀▀▜▌"))
+	leftLines = append(leftLines, "      "+logoColor.Render("▐▌▄▀▄▐▌"))
+	leftLines = append(leftLines, "      "+logoColor.Render("▐▌▀▄▀▐▌"))
+	leftLines = append(leftLines, "      "+logoColor.Render("▝▀▀▀▀▀▘"))
+	leftLines = append(leftLines, " "+descStyle.Render("Standups, attendance,"))
+	leftLines = append(leftLines, " "+descStyle.Render("and leave management."))
+	leftLines = append(leftLines, "")
+
+	var rightLines []string
+	rightLines = append(rightLines, "")
+	rightLines = append(rightLines, " "+hintHeader.Render("Get Started"))
+
+	hints := []struct{ cmd, desc string }{
+		{"/login", "Sign in to your account"},
+		{"/signup", "Create a new organization"},
+		{"/join", "Join an existing organization"},
+		{"/help", "View all available commands"},
+	}
+	for _, h := range hints {
+		rightLines = append(rightLines, fmt.Sprintf("   %s  %s", cmdStyle.Render(h.cmd), hintStyle.Render(h.desc)))
+	}
+	rightLines = append(rightLines, "")
+
+	boxWidth := m.width - 4
+	if boxWidth < 40 {
+		boxWidth = 40
+	}
+
+	if m.width < 80 {
+		allLines := append(leftLines, rightLines...)
+		return buildBoxedDashboard(title, allLines, nil, boxWidth, mutedColor)
+	}
+
+	return buildBoxedDashboard(title, leftLines, rightLines, boxWidth, mutedColor)
 }
 

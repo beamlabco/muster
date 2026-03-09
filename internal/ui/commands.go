@@ -47,10 +47,16 @@ func NewCommandRegistry() *CommandRegistry {
 			{Name: "leave review", Aliases: nil, Description: "Review pending leaves (manager/primary)", Category: "leave", RequiresAuth: true},
 			{Name: "leave cancel", Aliases: nil, Description: "Cancel a pending leave", Category: "leave", RequiresAuth: true},
 
+			// Projects
+			{Name: "project", Aliases: []string{"projects"}, Description: "View your projects", Category: "project", RequiresAuth: true},
+			{Name: "project create", Aliases: nil, Description: "Create a new project (primary only)", Category: "project", RequiresAuth: true},
+			{Name: "project settings", Aliases: nil, Description: "Configure project settings (primary only)", Category: "project", RequiresAuth: true},
+
 			// Team management
 			{Name: "team", Aliases: []string{"members"}, Description: "View team members and roles", Category: "admin", RequiresAuth: true},
 			{Name: "role", Aliases: nil, Description: "Update a user's role (primary only)", Category: "admin", RequiresAuth: true},
 			{Name: "invite", Aliases: nil, Description: "Invite a team member", Category: "admin", RequiresAuth: true},
+			{Name: "settings", Aliases: nil, Description: "Configure organization settings (primary only)", Category: "admin", RequiresAuth: true},
 
 			// Utility
 			{Name: "help", Aliases: []string{"?"}, Description: "Show available commands", Category: "utility", RequiresAuth: false},

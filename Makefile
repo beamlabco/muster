@@ -4,16 +4,31 @@
 BINARY_NAME=muster
 BUILD_DIR=bin
 
-# Build the CLI
-build:
-	@echo "Building $(BINARY_NAME)..."
-	@mkdir -p $(BUILD_DIR)
-	go build -o $(BUILD_DIR)/$(BINARY_NAME) cmd/muster/main.go
-	@echo "✓ Build complete: $(BUILD_DIR)/$(BINARY_NAME)"
+# API URLs
+DEV_API_URL=http://localhost:3000
+PROD_API_URL=https://api.muster.stagify.xyz
 
-# Run the CLI directly
+# ldflags for injecting build-time values
+LDFLAGS_DEV=-ldflags "-X main.defaultBaseURL=$(DEV_API_URL)"
+LDFLAGS_PROD=-ldflags "-X main.defaultBaseURL=$(PROD_API_URL)"
+
+# Build the CLI (dev — points to localhost)
+build:
+	@echo "Building $(BINARY_NAME) (dev)..."
+	@mkdir -p $(BUILD_DIR)
+	go build $(LDFLAGS_DEV) -o $(BUILD_DIR)/$(BINARY_NAME) cmd/muster/main.go
+	@echo "✓ Build complete: $(BUILD_DIR)/$(BINARY_NAME) → $(DEV_API_URL)"
+
+# Build the CLI (production — points to prod API)
+build-prod:
+	@echo "Building $(BINARY_NAME) (production)..."
+	@mkdir -p $(BUILD_DIR)
+	go build $(LDFLAGS_PROD) -o $(BUILD_DIR)/$(BINARY_NAME) cmd/muster/main.go
+	@echo "✓ Build complete: $(BUILD_DIR)/$(BINARY_NAME) → $(PROD_API_URL)"
+
+# Run the CLI directly (dev)
 run:
-	go run cmd/muster/main.go
+	go run $(LDFLAGS_DEV) cmd/muster/main.go
 
 # Install dependencies
 deps:
@@ -60,23 +75,24 @@ fmt:
 	go fmt ./...
 	@echo "✓ Code formatted"
 
-# Build for all platforms
+# Build for all platforms (production)
 build-all:
-	@echo "Building for all platforms..."
+	@echo "Building for all platforms (production)..."
 	@mkdir -p $(BUILD_DIR)
-	GOOS=darwin GOARCH=amd64 go build -o $(BUILD_DIR)/$(BINARY_NAME)-darwin-amd64 cmd/muster/main.go
-	GOOS=darwin GOARCH=arm64 go build -o $(BUILD_DIR)/$(BINARY_NAME)-darwin-arm64 cmd/muster/main.go
-	GOOS=linux GOARCH=amd64 go build -o $(BUILD_DIR)/$(BINARY_NAME)-linux-amd64 cmd/muster/main.go
-	GOOS=linux GOARCH=arm64 go build -o $(BUILD_DIR)/$(BINARY_NAME)-linux-arm64 cmd/muster/main.go
-	GOOS=windows GOARCH=amd64 go build -o $(BUILD_DIR)/$(BINARY_NAME)-windows-amd64.exe cmd/muster/main.go
-	@echo "✓ Built binaries for all platforms in $(BUILD_DIR)/"
+	GOOS=darwin GOARCH=amd64 go build $(LDFLAGS_PROD) -o $(BUILD_DIR)/$(BINARY_NAME)-darwin-amd64 cmd/muster/main.go
+	GOOS=darwin GOARCH=arm64 go build $(LDFLAGS_PROD) -o $(BUILD_DIR)/$(BINARY_NAME)-darwin-arm64 cmd/muster/main.go
+	GOOS=linux GOARCH=amd64 go build $(LDFLAGS_PROD) -o $(BUILD_DIR)/$(BINARY_NAME)-linux-amd64 cmd/muster/main.go
+	GOOS=linux GOARCH=arm64 go build $(LDFLAGS_PROD) -o $(BUILD_DIR)/$(BINARY_NAME)-linux-arm64 cmd/muster/main.go
+	GOOS=windows GOARCH=amd64 go build $(LDFLAGS_PROD) -o $(BUILD_DIR)/$(BINARY_NAME)-windows-amd64.exe cmd/muster/main.go
+	@echo "✓ Built binaries for all platforms in $(BUILD_DIR)/ → $(PROD_API_URL)"
 
 # Display help
 help:
 	@echo "Muster CLI - Makefile commands:"
 	@echo ""
-	@echo "  make build         - Build the CLI binary"
-	@echo "  make run           - Run the CLI directly"
+	@echo "  make build         - Build the CLI binary (dev → localhost)"
+	@echo "  make build-prod    - Build the CLI binary (production)"
+	@echo "  make run           - Run the CLI directly (dev)"
 	@echo "  make deps          - Install dependencies"
 	@echo "  make install       - Install binary to /usr/local/bin"
 	@echo "  make clean         - Clean build artifacts"
