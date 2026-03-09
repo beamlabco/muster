@@ -10,7 +10,7 @@ builds:
   - main: ./cmd/muster
     binary: muster
     ldflags:
-      - -s -w -X main.version={{.Version}}
+      - -s -w -X main.version={{.Version}} -X main.defaultBaseURL=https://api.muster.stagify.xyz
     goos:
       - darwin
       - linux

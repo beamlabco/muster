@@ -38,7 +38,7 @@ deps:
 	@echo "✓ Dependencies installed"
 
 # Install the binary to /usr/local/bin
-install: build
+install: build-prod
 	@echo "Installing $(BINARY_NAME) to /usr/local/bin..."
 	cp $(BUILD_DIR)/$(BINARY_NAME) /usr/local/bin/$(BINARY_NAME)
 	@echo "✓ Installed successfully"
