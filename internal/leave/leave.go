@@ -9,7 +9,7 @@ import (
 )
 
 // Valid leave types
-var ValidTypes = []string{"sick", "casual", "paid", "unpaid"}
+var ValidTypes = []string{"sick", "casual", "paid", "unpaid", "wfh"}
 
 // Valid leave statuses
 var ValidStatuses = []string{"pending", "approved", "rejected"}

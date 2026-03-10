@@ -46,6 +46,7 @@ const (
 	viewProjectList
 	viewProjectCreate
 	viewProjectSettings
+	viewProjectMembers
 )
 
 // Dashboard message types
@@ -112,6 +113,7 @@ type ShellModel struct {
 	projectListModel         ProjectListModel
 	projectCreateModel       ProjectCreateModel
 	projectSettingsModel     ProjectSettingsModel
+	projectMembersModel      ProjectMembersModel
 
 	// Output area
 	output     string
@@ -141,6 +143,12 @@ type ShellModel struct {
 func NewShellModel(authService *auth.Service, standupService *standup.Service, attendanceService *attendance.Service, invitationService *invitation.Service, leaveService *leave.Service, userService *user.Service, orgService *organization.Service, projectService *project.Service, cfg *config.Config) ShellModel {
 	registry := NewCommandRegistry()
 	isAuth := authService.IsAuthenticated()
+	role := ""
+	if isAuth {
+		if u := authService.GetUser(); u != nil {
+			role = u.Role
+		}
+	}
 
 	return ShellModel{
 		authService:       authService,
@@ -152,7 +160,7 @@ func NewShellModel(authService *auth.Service, standupService *standup.Service, a
 		orgService:        orgService,
 		projectService:    projectService,
 		config:            cfg,
-		commandInput:      NewCommandInput(registry, isAuth),
+		commandInput:      NewCommandInput(registry, isAuth, role),
 		registry:          registry,
 		currentView:       viewShell,
 		width:             80,
@@ -344,6 +352,8 @@ func (m ShellModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.updateProjectCreate(msg)
 	case viewProjectSettings:
 		return m.updateProjectSettings(msg)
+	case viewProjectMembers:
+		return m.updateProjectMembers(msg)
 	}
 
 	// Handle shell input
@@ -456,7 +466,7 @@ func (m ShellModel) handleCommand(cmdName string) (tea.Model, tea.Cmd) {
 		} else {
 			m.output = ""
 			m.outputType = ""
-			m.commandInput.SetAuth(false)
+			m.commandInput.SetAuth(false, "")
 			m.dashboard = struct {
 				loading          bool
 				myStandup        *api.StandupResponse
@@ -487,6 +497,11 @@ func (m ShellModel) handleCommand(cmdName string) (tea.Model, tea.Cmd) {
 		m.currentView = viewProjectSettings
 		m.projectSettingsModel = NewProjectSettingsModel(m.projectService)
 		return m, m.projectSettingsModel.Init()
+
+	case "project members":
+		m.currentView = viewProjectMembers
+		m.projectMembersModel = NewProjectMembersModel(m.projectService, m.userService)
+		return m, m.projectMembersModel.Init()
 
 	// Standup commands
 	case "standup":
@@ -613,7 +628,7 @@ func (m ShellModel) updateLogin(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.currentView = viewShell
 		m.output = ""
 		m.outputType = ""
-		m.commandInput.SetAuth(true)
+		m.commandInput.SetAuth(true, m.getUserRole())
 		cmd := m.startDashboardFetch()
 		return m, tea.Batch(m.commandInput.Focus(), cmd)
 	case loginErrorMsg:
@@ -644,7 +659,7 @@ func (m ShellModel) updateRegister(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.currentView = viewShell
 		m.output = ""
 		m.outputType = ""
-		m.commandInput.SetAuth(true)
+		m.commandInput.SetAuth(true, m.getUserRole())
 		cmd := m.startDashboardFetch()
 		return m, tea.Batch(m.commandInput.Focus(), cmd)
 	}
@@ -876,7 +891,7 @@ func (m ShellModel) updateJoin(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.currentView = viewShell
 		m.output = ""
 		m.outputType = ""
-		m.commandInput.SetAuth(true)
+		m.commandInput.SetAuth(true, m.getUserRole())
 		cmd := m.startDashboardFetch()
 		return m, tea.Batch(m.commandInput.Focus(), cmd)
 	}
@@ -1115,6 +1130,25 @@ func (m ShellModel) updateProjectSettings(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
+func (m ShellModel) updateProjectMembers(msg tea.Msg) (tea.Model, tea.Cmd) {
+	newModel, cmd := m.projectMembersModel.Update(msg)
+	m.projectMembersModel = newModel.(ProjectMembersModel)
+
+	if m.projectMembersModel.shouldGoBack {
+		m.currentView = viewShell
+		return m, m.commandInput.Focus()
+	}
+
+	return m, cmd
+}
+
+func (m ShellModel) getUserRole() string {
+	if u := m.authService.GetUser(); u != nil {
+		return u.Role
+	}
+	return ""
+}
+
 // View renders the shell
 func (m ShellModel) View() string {
 	if m.quitting {
@@ -1167,6 +1201,8 @@ func (m ShellModel) View() string {
 		return m.projectCreateModel.View()
 	case viewProjectSettings:
 		return m.projectSettingsModel.View()
+	case viewProjectMembers:
+		return m.projectMembersModel.View()
 	}
 
 	// Render shell view
@@ -1233,7 +1269,7 @@ func (m ShellModel) renderHelp() string {
 
 	b.WriteString("Available Commands:\n\n")
 
-	categories := m.registry.GetByCategory(m.authService.IsAuthenticated())
+	categories := m.registry.GetByCategory(m.authService.IsAuthenticated(), m.getUserRole())
 	categoryOrder := []string{"auth", "standup", "attendance", "leave", "project", "admin", "utility"}
 	// When authenticated, auth commands (logout) go near the end
 	if m.authService.IsAuthenticated() {

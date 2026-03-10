@@ -13,6 +13,7 @@ type Command struct {
 	Category     string
 	RequiresAuth bool
 	HideWhenAuth bool
+	RequiresRole string // if set, only users with this role see the command
 }
 
 // CommandRegistry holds all available commands
@@ -44,19 +45,20 @@ func NewCommandRegistry() *CommandRegistry {
 			// Leaves
 			{Name: "leave", Aliases: nil, Description: "Request a leave", Category: "leave", RequiresAuth: true},
 			{Name: "leave list", Aliases: []string{"leaves"}, Description: "View team leaves", Category: "leave", RequiresAuth: true},
-			{Name: "leave review", Aliases: nil, Description: "Review pending leaves (manager/primary)", Category: "leave", RequiresAuth: true},
+			{Name: "leave review", Aliases: nil, Description: "Review pending leaves", Category: "leave", RequiresAuth: true, RequiresRole: "primary"},
 			{Name: "leave cancel", Aliases: nil, Description: "Cancel a pending leave", Category: "leave", RequiresAuth: true},
 
 			// Projects
 			{Name: "project", Aliases: []string{"projects"}, Description: "View your projects", Category: "project", RequiresAuth: true},
-			{Name: "project create", Aliases: nil, Description: "Create a new project (primary only)", Category: "project", RequiresAuth: true},
-			{Name: "project settings", Aliases: nil, Description: "Configure project settings (primary only)", Category: "project", RequiresAuth: true},
+			{Name: "project create", Aliases: nil, Description: "Create a new project", Category: "project", RequiresAuth: true, RequiresRole: "primary"},
+			{Name: "project settings", Aliases: nil, Description: "Configure project settings", Category: "project", RequiresAuth: true, RequiresRole: "primary"},
+			{Name: "project members", Aliases: nil, Description: "Manage project members", Category: "project", RequiresAuth: true, RequiresRole: "primary"},
 
 			// Team management
 			{Name: "team", Aliases: []string{"members"}, Description: "View team members and roles", Category: "admin", RequiresAuth: true},
-			{Name: "role", Aliases: nil, Description: "Update a user's role (primary only)", Category: "admin", RequiresAuth: true},
-			{Name: "invite", Aliases: nil, Description: "Invite a team member", Category: "admin", RequiresAuth: true},
-			{Name: "settings", Aliases: nil, Description: "Configure organization settings (primary only)", Category: "admin", RequiresAuth: true},
+			{Name: "role", Aliases: nil, Description: "Update a user's role", Category: "admin", RequiresAuth: true, RequiresRole: "primary"},
+			{Name: "invite", Aliases: nil, Description: "Invite a team member", Category: "admin", RequiresAuth: true, RequiresRole: "primary"},
+			{Name: "settings", Aliases: nil, Description: "Configure organization settings", Category: "admin", RequiresAuth: true, RequiresRole: "primary"},
 
 			// Utility
 			{Name: "help", Aliases: []string{"?"}, Description: "Show available commands", Category: "utility", RequiresAuth: false},
@@ -73,8 +75,8 @@ func (r *CommandRegistry) GetAll() []Command {
 	return r.commands
 }
 
-// GetAvailable returns commands based on auth state
-func (r *CommandRegistry) GetAvailable(isAuthenticated bool) []Command {
+// GetAvailable returns commands based on auth state and role
+func (r *CommandRegistry) GetAvailable(isAuthenticated bool, role string) []Command {
 	var available []Command
 	for _, cmd := range r.commands {
 		if cmd.RequiresAuth && !isAuthenticated {
@@ -83,20 +85,23 @@ func (r *CommandRegistry) GetAvailable(isAuthenticated bool) []Command {
 		if cmd.HideWhenAuth && isAuthenticated {
 			continue
 		}
+		if cmd.RequiresRole != "" && cmd.RequiresRole != role {
+			continue
+		}
 		available = append(available, cmd)
 	}
 	return available
 }
 
 // Search finds commands matching the query (prefix match)
-func (r *CommandRegistry) Search(query string, isAuthenticated bool) []Command {
+func (r *CommandRegistry) Search(query string, isAuthenticated bool, role string) []Command {
 	query = strings.ToLower(strings.TrimPrefix(query, "/"))
 	if query == "" {
-		return r.GetAvailable(isAuthenticated)
+		return r.GetAvailable(isAuthenticated, role)
 	}
 
 	var matches []Command
-	available := r.GetAvailable(isAuthenticated)
+	available := r.GetAvailable(isAuthenticated, role)
 
 	for _, cmd := range available {
 		// Check command name
@@ -144,9 +149,9 @@ func (r *CommandRegistry) FindExact(name string) *Command {
 }
 
 // GetByCategory returns commands grouped by category
-func (r *CommandRegistry) GetByCategory(isAuthenticated bool) map[string][]Command {
+func (r *CommandRegistry) GetByCategory(isAuthenticated bool, role string) map[string][]Command {
 	result := make(map[string][]Command)
-	for _, cmd := range r.GetAvailable(isAuthenticated) {
+	for _, cmd := range r.GetAvailable(isAuthenticated, role) {
 		result[cmd.Category] = append(result[cmd.Category], cmd)
 	}
 	return result

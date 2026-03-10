@@ -47,7 +47,7 @@ func NewLeaveRequestModel(leaveService *leave.Service) LeaveRequestModel {
 
 	return LeaveRequestModel{
 		leaveService:   leaveService,
-		typeOptions:    []string{"sick", "casual", "paid", "unpaid"},
+		typeOptions:    []string{"sick", "casual", "paid", "unpaid", "wfh"},
 		selectedType:   0,
 		startDateInput: startDate,
 		endDateInput:   endDate,
@@ -271,6 +271,8 @@ func getLeaveTypeIcon(t string) string {
 		return "💰"
 	case "unpaid":
 		return "📋"
+	case "wfh":
+		return "🏠"
 	default:
 		return "•"
 	}

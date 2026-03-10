@@ -14,11 +14,12 @@ type CommandInput struct {
 	suggestions *Suggestions
 	registry    *CommandRegistry
 	isAuth      bool
+	role        string
 	ghostText   string
 }
 
 // NewCommandInput creates a new command input
-func NewCommandInput(registry *CommandRegistry, isAuth bool) *CommandInput {
+func NewCommandInput(registry *CommandRegistry, isAuth bool, role string) *CommandInput {
 	ti := textinput.New()
 	ti.Placeholder = "Type / for commands..."
 	ti.Focus()
@@ -33,13 +34,15 @@ func NewCommandInput(registry *CommandRegistry, isAuth bool) *CommandInput {
 		suggestions: NewSuggestions(),
 		registry:    registry,
 		isAuth:      isAuth,
+		role:        role,
 		ghostText:   "",
 	}
 }
 
-// SetAuth updates the authentication state
-func (c *CommandInput) SetAuth(isAuth bool) {
+// SetAuth updates the authentication state and role
+func (c *CommandInput) SetAuth(isAuth bool, role string) {
 	c.isAuth = isAuth
+	c.role = role
 }
 
 // Focus focuses the input
@@ -80,7 +83,7 @@ func (c *CommandInput) updateSuggestions() {
 	value := c.input.Value()
 
 	if strings.HasPrefix(value, "/") {
-		matches := c.registry.Search(value, c.isAuth)
+		matches := c.registry.Search(value, c.isAuth, c.role)
 		c.suggestions.SetItems(matches)
 
 		// Update ghost text
