@@ -1,6 +1,6 @@
 # Muster CLI
 
-> A beautiful terminal user interface (TUI) for Muster - a team productivity tool for daily standups, attendance tracking, and leave management.
+> A beautiful terminal user interface (TUI) for Muster - a team productivity tool for daily standups, attendance tracking, leave management, and project organization.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Go](https://img.shields.io/badge/Go-1.21+-00ADD8.svg)](https://go.dev/)
@@ -9,12 +9,14 @@
 
 ## Features
 
-- 📝 **Standups**: Submit and view team standups
-- 📊 **Attendance**: Check in/out and view team status
-- 🏖️ **Leave Management**: Request, review, and cancel leaves
+- 📝 **Standups**: Submit and view team standups (scoped to projects)
+- 📊 **Attendance**: Check in/out with time tracking and view team status
+- 🏖️ **Leave Management**: Request (sick, casual, paid, unpaid, WFH), review, and cancel leaves
+- 📂 **Projects**: Create projects, manage members, configure per-project settings
 - 👥 **Team Management**: Invite members, manage roles
 - 🔐 **Authentication**: Login, registration, and org invitations
 - 🎨 **Beautiful TUI**: Built with Bubble Tea and Lip Gloss
+- 🔒 **Role-based commands**: CLI only shows commands you have access to
 
 ## Installation
 
@@ -28,7 +30,7 @@ brew install beamlabco/tap/muster
 
 ```bash
 git clone https://github.com/beamlabco/muster.git
-cd muster
+cd muster/cli
 make build
 ./bin/muster
 ```
@@ -43,7 +45,9 @@ muster
 
 ### Commands
 
-Type `/` to see available commands:
+Type `/` to see available commands. Commands are filtered by your role — admins see all commands, members see only what they have access to.
+
+#### All Users
 
 | Command | Description |
 |---------|-------------|
@@ -55,24 +59,41 @@ Type `/` to see available commands:
 | `/standup history` | View your standup history |
 | `/checkin` | Check in for the day |
 | `/checkout` | Check out for the day |
+| `/attendance` | Mark your attendance |
 | `/attendance today` | View team attendance for today |
 | `/attendance history` | View your attendance history |
-| `/leave` | Request a leave |
+| `/leave` | Request a leave (sick, casual, paid, unpaid, wfh) |
 | `/leave list` | View team leaves |
-| `/leave review` | Review pending leaves (primary only) |
 | `/leave cancel` | Cancel a pending leave |
+| `/project` | View your projects |
 | `/team` | View team members and roles |
-| `/role` | Update a user's role (primary only) |
-| `/invite` | Invite a team member |
 | `/whoami` | Show current user info |
 | `/help` | Show available commands |
 | `/quit` | Exit the application |
+
+#### Primary (Admin) Only
+
+| Command | Description |
+|---------|-------------|
+| `/project create` | Create a new project |
+| `/project settings` | Configure project settings (name, summary time, timezone, Discord webhook) |
+| `/project members` | Add or remove project members |
+| `/role` | Update a user's role |
+| `/invite` | Invite a team member |
+| `/settings` | Configure organization settings |
+
+#### Primary + Manager
+
+| Command | Description |
+|---------|-------------|
+| `/leave review` | Review and approve/reject pending leaves |
 
 ### Navigation
 
 - `Tab`: Accept autocomplete suggestion
 - `↑` / `↓`: Navigate suggestions
-- `Enter`: Execute command
+- `←` / `→`: Cycle options (e.g., leave type)
+- `Enter`: Execute command / submit form
 - `Esc`: Go back / cancel
 - `Ctrl+C`: Quit
 
