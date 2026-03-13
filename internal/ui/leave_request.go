@@ -91,7 +91,7 @@ func (m LeaveRequestModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, nil
 			}
 
-		case "tab":
+		case "tab", "down", "j":
 			m.blurAll()
 			m.focusIndex++
 			if m.focusIndex > 3 {
@@ -100,7 +100,7 @@ func (m LeaveRequestModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.focusCurrent()
 			return m, nil
 
-		case "shift+tab":
+		case "shift+tab", "up", "k":
 			m.blurAll()
 			m.focusIndex--
 			if m.focusIndex < 0 {
@@ -113,9 +113,7 @@ func (m LeaveRequestModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.loading {
 				return m, nil
 			}
-			if m.focusIndex == 0 {
-				return m, m.handleSubmit()
-			}
+			return m, m.handleSubmit()
 		}
 
 	case leaveRequestSuccessMsg:
@@ -236,7 +234,7 @@ func (m LeaveRequestModel) View() string {
 	}
 
 	if !m.loading {
-		b.WriteString(helpStyle.Render("[←→] Type  [Tab] Next field  [Enter] Submit  [Esc] Back"))
+		b.WriteString(helpStyle.Render("[←→] Type  [↑↓/Tab] Navigate  [Enter] Submit  [Esc] Back"))
 	}
 
 	return baseStyle.Render(b.String())

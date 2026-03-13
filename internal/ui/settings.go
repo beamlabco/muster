@@ -59,7 +59,7 @@ func (m SettingsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.shouldGoBack = true
 			return m, nil
 
-		case "ctrl+s":
+		case "ctrl+s", "enter":
 			if m.loading {
 				return m, nil
 			}
@@ -138,7 +138,7 @@ func (m SettingsModel) View() string {
 	}
 
 	if !m.loading {
-		b.WriteString(helpStyle.Render("[Ctrl+S] Save  [Esc] Back"))
+		b.WriteString(helpStyle.Render("[Enter/Ctrl+S] Save  [Esc] Back"))
 	}
 
 	return baseStyle.Render(b.String())

@@ -296,9 +296,9 @@ func (m StandupSubmitModel) View() string {
 
 	// Help text
 	if !m.loading {
-		helpText := "tab: next field  ctrl+s: submit  esc: back"
+		helpText := "[Tab] Next field  [Ctrl+S] Submit  [Esc] Back"
 		if len(m.projects) > 1 {
-			helpText = "tab: next field  ctrl+s: submit  esc: change project"
+			helpText = "[Tab] Next field  [Ctrl+S] Submit  [Esc] Change project"
 		}
 		b.WriteString(helpStyle.Render(helpText))
 	}

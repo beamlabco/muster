@@ -13,10 +13,10 @@ import (
 
 const (
 	projSettingsName = iota
+	projSettingsEnabled
 	projSettingsSummaryTime
 	projSettingsTimezone
 	projSettingsDiscordURL
-	projSettingsEnabled
 )
 
 // ProjectSettingsModel represents the project settings form
@@ -98,11 +98,27 @@ func (m ProjectSettingsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.phase == "select" && m.selectedIdx > 0 {
 				m.selectedIdx--
 			}
+			if m.phase == "edit" {
+				m.blurAll()
+				m.focusIndex--
+				if m.focusIndex < projSettingsName {
+					m.focusIndex = projSettingsDiscordURL
+				}
+				m.focusCurrent()
+			}
 			return m, nil
 
 		case "down", "j":
 			if m.phase == "select" && m.selectedIdx < len(m.projects)-1 {
 				m.selectedIdx++
+			}
+			if m.phase == "edit" {
+				m.blurAll()
+				m.focusIndex++
+				if m.focusIndex > projSettingsDiscordURL {
+					m.focusIndex = projSettingsName
+				}
+				m.focusCurrent()
 			}
 			return m, nil
 
@@ -110,15 +126,18 @@ func (m ProjectSettingsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.phase == "select" && len(m.projects) > 0 {
 				m.phase = "edit"
 				m.populateFromProject(m.projects[m.selectedIdx])
-				m.inputs[projSettingsName].Focus()
+				m.inputs[inputIndex(projSettingsName)].Focus()
 				return m, nil
+			}
+			if m.phase == "edit" && !m.loading {
+				return m, m.handleSubmit()
 			}
 
 		case "tab":
 			if m.phase == "edit" {
 				m.blurAll()
 				m.focusIndex++
-				if m.focusIndex > projSettingsEnabled {
+				if m.focusIndex > projSettingsDiscordURL {
 					m.focusIndex = projSettingsName
 				}
 				m.focusCurrent()
@@ -130,7 +149,7 @@ func (m ProjectSettingsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.blurAll()
 				m.focusIndex--
 				if m.focusIndex < projSettingsName {
-					m.focusIndex = projSettingsEnabled
+					m.focusIndex = projSettingsDiscordURL
 				}
 				m.focusCurrent()
 				return m, nil
@@ -166,13 +185,34 @@ func (m ProjectSettingsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	// Update focused text input in edit phase
-	if m.phase == "edit" && m.focusIndex < projSettingsEnabled {
-		var cmd tea.Cmd
-		m.inputs[m.focusIndex], cmd = m.inputs[m.focusIndex].Update(msg)
-		return m, cmd
+	if m.phase == "edit" {
+		idx := inputIndex(m.focusIndex)
+		if idx >= 0 {
+			var cmd tea.Cmd
+			m.inputs[idx], cmd = m.inputs[idx].Update(msg)
+			return m, cmd
+		}
 	}
 
 	return m, nil
+}
+
+// inputIndex maps a focus constant to the inputs array index.
+// The inputs array is [name, summaryTime, timezone, discordURL].
+// projSettingsEnabled is a toggle, not in the inputs array.
+func inputIndex(focusIdx int) int {
+	switch focusIdx {
+	case projSettingsName:
+		return 0
+	case projSettingsSummaryTime:
+		return 1
+	case projSettingsTimezone:
+		return 2
+	case projSettingsDiscordURL:
+		return 3
+	default:
+		return -1
+	}
 }
 
 func (m *ProjectSettingsModel) blurAll() {
@@ -182,21 +222,22 @@ func (m *ProjectSettingsModel) blurAll() {
 }
 
 func (m *ProjectSettingsModel) focusCurrent() {
-	if m.focusIndex < projSettingsEnabled {
-		m.inputs[m.focusIndex].Focus()
+	idx := inputIndex(m.focusIndex)
+	if idx >= 0 {
+		m.inputs[idx].Focus()
 	}
 }
 
 func (m *ProjectSettingsModel) populateFromProject(p *api.ProjectResponse) {
-	m.inputs[projSettingsName].SetValue(p.Name)
+	m.inputs[inputIndex(projSettingsName)].SetValue(p.Name)
 	if p.SummaryTime != nil {
-		m.inputs[projSettingsSummaryTime].SetValue(*p.SummaryTime)
+		m.inputs[inputIndex(projSettingsSummaryTime)].SetValue(*p.SummaryTime)
 	}
 	if p.Timezone != nil {
-		m.inputs[projSettingsTimezone].SetValue(*p.Timezone)
+		m.inputs[inputIndex(projSettingsTimezone)].SetValue(*p.Timezone)
 	}
 	if p.DiscordWebhookURL != nil {
-		m.inputs[projSettingsDiscordURL].SetValue(*p.DiscordWebhookURL)
+		m.inputs[inputIndex(projSettingsDiscordURL)].SetValue(*p.DiscordWebhookURL)
 	}
 	m.enabledToggle = p.SummaryEnabled
 }
@@ -239,9 +280,9 @@ func (m ProjectSettingsModel) View() string {
 	b.WriteString(labelStyle.Render("Project name:"))
 	b.WriteString("\n")
 	if m.focusIndex == projSettingsName {
-		b.WriteString(focusedInputStyle.Render(m.inputs[projSettingsName].View()))
+		b.WriteString(focusedInputStyle.Render(m.inputs[inputIndex(projSettingsName)].View()))
 	} else {
-		b.WriteString(blurredInputStyle.Render(m.inputs[projSettingsName].View()))
+		b.WriteString(blurredInputStyle.Render(m.inputs[inputIndex(projSettingsName)].View()))
 	}
 	b.WriteString("\n\n")
 
@@ -268,9 +309,9 @@ func (m ProjectSettingsModel) View() string {
 	b.WriteString(labelStyle.Render("Summary time (HH:MM):"))
 	b.WriteString("\n")
 	if m.focusIndex == projSettingsSummaryTime {
-		b.WriteString(focusedInputStyle.Render(m.inputs[projSettingsSummaryTime].View()))
+		b.WriteString(focusedInputStyle.Render(m.inputs[inputIndex(projSettingsSummaryTime)].View()))
 	} else {
-		b.WriteString(blurredInputStyle.Render(m.inputs[projSettingsSummaryTime].View()))
+		b.WriteString(blurredInputStyle.Render(m.inputs[inputIndex(projSettingsSummaryTime)].View()))
 	}
 	b.WriteString("\n\n")
 
@@ -278,9 +319,9 @@ func (m ProjectSettingsModel) View() string {
 	b.WriteString(labelStyle.Render("Timezone (IANA):"))
 	b.WriteString("\n")
 	if m.focusIndex == projSettingsTimezone {
-		b.WriteString(focusedInputStyle.Render(m.inputs[projSettingsTimezone].View()))
+		b.WriteString(focusedInputStyle.Render(m.inputs[inputIndex(projSettingsTimezone)].View()))
 	} else {
-		b.WriteString(blurredInputStyle.Render(m.inputs[projSettingsTimezone].View()))
+		b.WriteString(blurredInputStyle.Render(m.inputs[inputIndex(projSettingsTimezone)].View()))
 	}
 	b.WriteString("\n\n")
 
@@ -288,9 +329,9 @@ func (m ProjectSettingsModel) View() string {
 	b.WriteString(labelStyle.Render("Discord webhook URL:"))
 	b.WriteString("\n")
 	if m.focusIndex == projSettingsDiscordURL {
-		b.WriteString(focusedInputStyle.Render(m.inputs[projSettingsDiscordURL].View()))
+		b.WriteString(focusedInputStyle.Render(m.inputs[inputIndex(projSettingsDiscordURL)].View()))
 	} else {
-		b.WriteString(blurredInputStyle.Render(m.inputs[projSettingsDiscordURL].View()))
+		b.WriteString(blurredInputStyle.Render(m.inputs[inputIndex(projSettingsDiscordURL)].View()))
 	}
 	b.WriteString("\n\n")
 
@@ -310,7 +351,7 @@ func (m ProjectSettingsModel) View() string {
 	}
 
 	if !m.loading {
-		b.WriteString(helpStyle.Render("[Tab] Next field  [Space] Toggle  [Ctrl+S] Save  [Esc] Back to list"))
+		b.WriteString(helpStyle.Render("[↑↓/Tab] Navigate  [Space] Toggle  [Enter/Ctrl+S] Save  [Esc] Back"))
 	}
 
 	return baseStyle.Render(b.String())
@@ -327,10 +368,10 @@ func (m *ProjectSettingsModel) fetchProjects() tea.Cmd {
 }
 
 func (m *ProjectSettingsModel) handleSubmit() tea.Cmd {
-	name := strings.TrimSpace(m.inputs[projSettingsName].Value())
-	summaryTime := strings.TrimSpace(m.inputs[projSettingsSummaryTime].Value())
-	timezone := strings.TrimSpace(m.inputs[projSettingsTimezone].Value())
-	discordURL := strings.TrimSpace(m.inputs[projSettingsDiscordURL].Value())
+	name := strings.TrimSpace(m.inputs[inputIndex(projSettingsName)].Value())
+	summaryTime := strings.TrimSpace(m.inputs[inputIndex(projSettingsSummaryTime)].Value())
+	timezone := strings.TrimSpace(m.inputs[inputIndex(projSettingsTimezone)].Value())
+	discordURL := strings.TrimSpace(m.inputs[inputIndex(projSettingsDiscordURL)].Value())
 	enabled := m.enabledToggle
 
 	m.errorMsg = ""

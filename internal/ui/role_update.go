@@ -96,9 +96,7 @@ func (m RoleUpdateModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.loading || len(m.members) == 0 {
 				return m, nil
 			}
-			if m.focusIndex == 1 {
-				return m, m.handleSubmit()
-			}
+			return m, m.handleSubmit()
 
 		case "r":
 			if m.focusIndex == 0 {

@@ -87,9 +87,7 @@ func (m AttendanceMarkModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.loading {
 				return m, nil
 			}
-			if !m.notesInput.Focused() {
-				return m, m.handleSubmit()
-			}
+			return m, m.handleSubmit()
 		}
 
 	case attendanceMarkSuccessMsg:
