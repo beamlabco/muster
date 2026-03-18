@@ -192,11 +192,11 @@ func (m *AttendanceCheckInModel) handleSubmit() tea.Cmd {
 		if err != nil {
 			return checkInErrorMsg(err.Error())
 		}
-		time := ""
+		t := ""
 		if resp.CheckinTime != nil {
-			time = *resp.CheckinTime
+			t = utcTimeToLocal(*resp.CheckinTime)
 		}
-		return checkInSuccessMsg{status: status, time: time}
+		return checkInSuccessMsg{status: status, time: t}
 	}
 }
 

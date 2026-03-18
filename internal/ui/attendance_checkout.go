@@ -128,11 +128,11 @@ func (m *AttendanceCheckOutModel) handleSubmit() tea.Cmd {
 		if err != nil {
 			return checkOutErrorMsg(err.Error())
 		}
-		time := ""
+		t := ""
 		if resp.CheckoutTime != nil {
-			time = *resp.CheckoutTime
+			t = utcTimeToLocal(*resp.CheckoutTime)
 		}
-		return checkOutSuccessMsg{time: time}
+		return checkOutSuccessMsg{time: t}
 	}
 }
 
