@@ -14,6 +14,7 @@
 - 🏖️ **Leave Management**: Request (sick, casual, paid, unpaid, WFH), review, and cancel leaves
 - 📂 **Projects**: Create projects, manage members, configure per-project settings
 - 👥 **Team Management**: Invite members, manage roles
+- 🔑 **Password Management**: Change your own password or reset a member's password (admin)
 - 🔐 **Authentication**: Login, registration, and org invitations
 - 🎨 **Beautiful TUI**: Built with Bubble Tea and Lip Gloss
 - 🔒 **Role-based commands**: CLI only shows commands you have access to
@@ -67,6 +68,7 @@ Type `/` to see available commands. Commands are filtered by your role — admin
 | `/leave cancel` | Cancel a pending leave |
 | `/project` | View your projects |
 | `/team` | View team members and roles |
+| `/password` | Change your password |
 | `/whoami` | Show current user info |
 | `/help` | Show available commands |
 | `/quit` | Exit the application |
@@ -81,6 +83,7 @@ Type `/` to see available commands. Commands are filtered by your role — admin
 | `/role` | Update a user's role |
 | `/invite` | Invite a team member |
 | `/settings` | Configure organization settings |
+| `/reset-password` | Reset a member's password |
 
 #### Primary + Manager
 
