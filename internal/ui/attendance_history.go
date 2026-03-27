@@ -103,6 +103,16 @@ func (m AttendanceHistoryModel) View() string {
 			b.WriteString(statusStyle.Render(fmt.Sprintf("%s %s", getStatusIcon(record.Status), record.Status)))
 			b.WriteString("\n")
 
+			// Checkin/checkout times
+			timeStyle := lipgloss.NewStyle().Foreground(mutedColor)
+			if record.CheckinTime != nil {
+				b.WriteString(timeStyle.Render(fmt.Sprintf("  In: %s", utcTimeToLocal(*record.CheckinTime))))
+				if record.CheckoutTime != nil {
+					b.WriteString(timeStyle.Render(fmt.Sprintf("  Out: %s", utcTimeToLocal(*record.CheckoutTime))))
+				}
+				b.WriteString("\n")
+			}
+
 			// Notes if present
 			if record.Notes != nil && *record.Notes != "" {
 				notesStyle := lipgloss.NewStyle().Foreground(mutedColor).Italic(true)

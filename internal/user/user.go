@@ -47,6 +47,34 @@ func (s *Service) UpdateRole(userID int, role string) (*api.UserResponse, error)
 	return resp, nil
 }
 
+// ResetPassword resets another user's password (primary only)
+func (s *Service) ResetPassword(userID int, newPassword string) error {
+	if len(newPassword) < 8 {
+		return fmt.Errorf("new password must be at least 8 characters")
+	}
+
+	err := s.client.ResetUserPassword(userID, newPassword)
+	if err != nil {
+		return fmt.Errorf("failed to reset password: %w", err)
+	}
+
+	return nil
+}
+
+// ChangePassword changes the authenticated user's password
+func (s *Service) ChangePassword(currentPassword, newPassword string) error {
+	if len(newPassword) < 8 {
+		return fmt.Errorf("new password must be at least 8 characters")
+	}
+
+	err := s.client.ChangePassword(currentPassword, newPassword)
+	if err != nil {
+		return fmt.Errorf("failed to change password: %w", err)
+	}
+
+	return nil
+}
+
 func isValidRole(role string) bool {
 	for _, r := range ValidRoles {
 		if r == role {

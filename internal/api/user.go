@@ -9,6 +9,12 @@ type UpdateRoleRequest struct {
 	Role string `json:"role"`
 }
 
+// ChangePasswordRequest represents the change password request
+type ChangePasswordRequest struct {
+	CurrentPassword string `json:"currentPassword"`
+	NewPassword     string `json:"newPassword"`
+}
+
 // GetMembersResponse represents the get members response
 type GetMembersResponse struct {
 	Users []*MemberResponse `json:"users"`
@@ -38,6 +44,48 @@ func (c *Client) GetMembers() (*GetMembersResponse, error) {
 	}
 
 	return &result, nil
+}
+
+// ChangePassword changes the authenticated user's password
+func (c *Client) ChangePassword(currentPassword, newPassword string) error {
+	resp, err := c.http.R().
+		SetBody(&ChangePasswordRequest{
+			CurrentPassword: currentPassword,
+			NewPassword:     newPassword,
+		}).
+		Patch("/api/users/password")
+
+	if err != nil {
+		return err
+	}
+
+	if resp.IsError() {
+		return parseError(resp)
+	}
+
+	return nil
+}
+
+// ResetUserPasswordRequest represents the reset password request
+type ResetUserPasswordRequest struct {
+	NewPassword string `json:"newPassword"`
+}
+
+// ResetUserPassword resets another user's password (primary only)
+func (c *Client) ResetUserPassword(userID int, newPassword string) error {
+	resp, err := c.http.R().
+		SetBody(&ResetUserPasswordRequest{NewPassword: newPassword}).
+		Patch(fmt.Sprintf("/api/users/%d/reset-password", userID))
+
+	if err != nil {
+		return err
+	}
+
+	if resp.IsError() {
+		return parseError(resp)
+	}
+
+	return nil
 }
 
 // UpdateUserRole updates a user's role

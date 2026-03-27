@@ -60,6 +60,10 @@ func NewCommandRegistry() *CommandRegistry {
 			{Name: "invite", Aliases: nil, Description: "Invite a team member", Category: "admin", RequiresAuth: true, RequiresRole: "primary"},
 			{Name: "settings", Aliases: nil, Description: "Configure organization settings", Category: "admin", RequiresAuth: true, RequiresRole: "primary"},
 
+			// Account
+			{Name: "password", Aliases: []string{"change-password"}, Description: "Change your password", Category: "account", RequiresAuth: true},
+			{Name: "reset-password", Aliases: nil, Description: "Reset a member's password", Category: "account", RequiresAuth: true, RequiresRole: "primary"},
+
 			// Utility
 			{Name: "help", Aliases: []string{"?"}, Description: "Show available commands", Category: "utility", RequiresAuth: false},
 			{Name: "whoami", Aliases: []string{"me"}, Description: "Show current user info", Category: "utility", RequiresAuth: true},

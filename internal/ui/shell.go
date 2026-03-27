@@ -47,6 +47,8 @@ const (
 	viewProjectCreate
 	viewProjectSettings
 	viewProjectMembers
+	viewChangePassword
+	viewResetPassword
 )
 
 // Dashboard message types
@@ -114,6 +116,8 @@ type ShellModel struct {
 	projectCreateModel       ProjectCreateModel
 	projectSettingsModel     ProjectSettingsModel
 	projectMembersModel      ProjectMembersModel
+	changePasswordModel      ChangePasswordModel
+	resetPasswordModel       ResetPasswordModel
 
 	// Output area
 	output     string
@@ -354,6 +358,10 @@ func (m ShellModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.updateProjectSettings(msg)
 	case viewProjectMembers:
 		return m.updateProjectMembers(msg)
+	case viewChangePassword:
+		return m.updateChangePassword(msg)
+	case viewResetPassword:
+		return m.updateResetPassword(msg)
 	}
 
 	// Handle shell input
@@ -586,6 +594,16 @@ func (m ShellModel) handleCommand(cmdName string) (tea.Model, tea.Cmd) {
 		m.currentView = viewSettings
 		m.settingsModel = NewSettingsModel(m.orgService)
 		return m, m.settingsModel.Init()
+
+	case "password":
+		m.currentView = viewChangePassword
+		m.changePasswordModel = NewChangePasswordModel(m.userService)
+		return m, m.changePasswordModel.Init()
+
+	case "reset-password":
+		m.currentView = viewResetPassword
+		m.resetPasswordModel = NewResetPasswordModel(m.userService)
+		return m, m.resetPasswordModel.Init()
 
 	// Utility commands
 	case "help":
@@ -1142,6 +1160,30 @@ func (m ShellModel) updateProjectMembers(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
+func (m ShellModel) updateResetPassword(msg tea.Msg) (tea.Model, tea.Cmd) {
+	newModel, cmd := m.resetPasswordModel.Update(msg)
+	m.resetPasswordModel = newModel.(ResetPasswordModel)
+
+	if m.resetPasswordModel.shouldGoBack {
+		m.currentView = viewShell
+		return m, m.commandInput.Focus()
+	}
+
+	return m, cmd
+}
+
+func (m ShellModel) updateChangePassword(msg tea.Msg) (tea.Model, tea.Cmd) {
+	newModel, cmd := m.changePasswordModel.Update(msg)
+	m.changePasswordModel = newModel.(ChangePasswordModel)
+
+	if m.changePasswordModel.shouldGoBack {
+		m.currentView = viewShell
+		return m, m.commandInput.Focus()
+	}
+
+	return m, cmd
+}
+
 func (m ShellModel) getUserRole() string {
 	if u := m.authService.GetUser(); u != nil {
 		return u.Role
@@ -1203,6 +1245,10 @@ func (m ShellModel) View() string {
 		return m.projectSettingsModel.View()
 	case viewProjectMembers:
 		return m.projectMembersModel.View()
+	case viewChangePassword:
+		return m.changePasswordModel.View()
+	case viewResetPassword:
+		return m.resetPasswordModel.View()
 	}
 
 	// Render shell view

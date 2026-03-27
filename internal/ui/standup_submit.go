@@ -132,16 +132,20 @@ func (m StandupSubmitModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 
 		case "up", "k":
-			if m.phase == "project_select" && m.projectIdx > 0 {
-				m.projectIdx--
+			if m.phase == "project_select" {
+				if m.projectIdx > 0 {
+					m.projectIdx--
+				}
+				return m, nil
 			}
-			return m, nil
 
 		case "down", "j":
-			if m.phase == "project_select" && m.projectIdx < len(m.projects)-1 {
-				m.projectIdx++
+			if m.phase == "project_select" {
+				if m.projectIdx < len(m.projects)-1 {
+					m.projectIdx++
+				}
+				return m, nil
 			}
-			return m, nil
 
 		case "enter":
 			if m.phase == "project_select" && len(m.projects) > 0 {
